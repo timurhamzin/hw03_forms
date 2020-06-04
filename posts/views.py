@@ -1,7 +1,7 @@
-from django.shortcuts import render
+from django.shortcuts import render, redirect
 from .models import Post
 from django.http import HttpResponseNotFound
-from django.shortcuts import get_object_or_404
+from .forms import PostForm
 
 
 def index(request):
@@ -17,3 +17,15 @@ def group_posts(request, slug):
         return render(request, 'group.html', {'group': group, 'posts': latest})
     else:
         return HttpResponseNotFound(request)
+
+
+def new_post(request):
+    form = PostForm(request.POST)
+    if form.is_valid():
+        text = form.cleaned_data['text']
+        group = form.cleaned_data['group']
+        new = Post(text=text, group=group, author_id=request.user.id)
+        new.save()
+        return redirect('index')
+    else:
+        return render(request, 'new.html', {'form': form})
