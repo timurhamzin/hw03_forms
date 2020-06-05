@@ -20,12 +20,16 @@ def group_posts(request, slug):
 
 
 def new_post(request):
-    form = PostForm(request.POST)
-    if form.is_valid():
-        text = form.cleaned_data['text']
-        group = form.cleaned_data['group']
-        new = Post(text=text, group=group, author_id=request.user.id)
-        new.save()
-        return redirect('index')
+    if request.method == 'POST':
+        form = PostForm(request.POST)
+        if form.is_valid():
+            text = form.cleaned_data['text']
+            group = form.cleaned_data['group']
+            new = Post(text=text, group=group, author_id=request.user.id)
+            new.save()
+            return redirect('index')
+        else:
+            return render(request, 'new.html', {'form': form})
     else:
+        form = PostForm(request.GET)
         return render(request, 'new.html', {'form': form})
