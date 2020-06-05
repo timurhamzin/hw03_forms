@@ -18,4 +18,6 @@ __pycache__/
 static/
 posts/static/
 
-db.sqlite3
+backup/
+
+# db.sqlite3
