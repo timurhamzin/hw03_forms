@@ -28,8 +28,6 @@ def new_post(request):
             new = Post(text=text, group=group, author_id=request.user.id)
             new.save()
             return redirect('index')
-        else:
-            return render(request, 'new.html', {'form': form})
     else:
         form = PostForm(request.GET)
-        return render(request, 'new.html', {'form': form})
+    return render(request, 'new.html', {'form': form})
