@@ -1,4 +1,6 @@
 from django.shortcuts import render, redirect, get_object_or_404
+from django.urls import reverse
+
 from .models import Post, User, Group
 from django.http import HttpResponseNotFound
 from .forms import PostForm
@@ -58,71 +60,77 @@ def print_form_errors(form):
         print(form.errors[field].as_text())
 
 
-class PostEditor:
+class PostEditorRenderer:
 
-    def __init__(self, username: str, post_id: int, author: User, request):
+    def __init__(self, post_id: int, author: User, request):
         self._author = author
-        self._username = username
         self._post_id = post_id
         if post_id is None:
-            self.mode = 'create'
+            self._mode = 'create'
         else:
-            self.mode = 'edit'
+            self._mode = 'edit'
         self._request = request
-
-    def render_on_create(self):
-        form = PostForm(self._request.POST or None)
-        post = form.save(commit=False)
+        self._form = None
+        self._post = None
+        self._form_valid = False
 
     def render(self):
         if self._mode == 'create':
-            # post is being created
-            form = PostForm(self._request.POST or None)
-            post = form.save(commit=False)
+            self._create_post()
         else:
-            # post is being edited
-            if self._request.method == 'GET':
-                print(f'Print: getting post by id {post_id}')
-                post = Post.objects.get(author__username=author, id=post_id)
-                form = PostForm(instance=post)
-            else:
-                form = PostForm(self._request.POST)
-        if self._request.method == 'POST':
-            if form.is_valid():
-                print(
-                    f'Print: form is valid, posting post {post_id}')
-                if self._mode == 'create':
-                    post = form.save(commit=False)
-                    post.author = self._request.user
-                else:
-                    post = Post.objects.get(author__username=author, id=post_id)
-                    post.text = self._request.POST.get('text')
-                    post.group = Group.objects.get(id=int(self._request.POST.get('group')))
+            self._edit_post()
+        return self._render()
+
+    def _create_post(self):
+        self._form = PostForm(self._request.POST or None)
+        if self._form.is_valid():
+            self._post = self._form.save(commit=False)
+            self._post.author = self._request.user
+            self._post.save()
+        self._form_valid = self._form.is_valid()
+
+    def _edit_post(self):
+        if self._request.method == 'GET':
+            self._post = Post.objects.get(author__username=self._author.username, id=self._post_id)
+            self._form = PostForm(instance=self._post)
+        else:
+            self._form = PostForm(self._request.POST)
+            if self._form.is_valid():
+                post = self._form.save(commit=False)
+                post.author = self._request.user
                 post.save()
-                print(f'Print: showing post_view of post by id {post.id}')
-            else:
-                print(
-                    f'Print: form is NOT valid for post {post_id}')
-            return post_view(self._request, post.author, post.id)
+        self._form_valid = self._form.is_valid()
+
+    def _render(self):
+        if self._request.method == 'GET':
+            return self._render_on_get()
         else:
-            # showing GET-self._request results
-            print(f'Print: showing GET-request results for post {post_id}')
-            print(f'Print: create_or_edit={self._mode}')
-            print(f'Print: post_id={post_id}')
-            print(f'Print: username={username}')
-            return render(self._request, 'post_edit.html',
-                          {'form': form, 'create_or_edit': self._mode == 'create',
-                           'post_id': str(post_id), 'username': username,
-                           'post': post})
+            return self._render_on_post()
+
+    def _render_on_post(self):
+        if self._form_valid:
+            # return post_view(self._request, self._post.author, self._post.id)
+            return redirect(reverse('post', kwargs={'username': self._author.username,
+                                                    'post_id': self._post_id}))
+        else:
+            print(f'errors: {self._form.errors}')
+            print_form_errors(self._form)
+            return self._render_on_get()
+
+    def _render_on_get(self):
+        return render(self._request, 'post_edit.html',
+                      {'form': self._form, 'create_or_edit': self._mode == 'create',
+                       'post_id': str(self._post.id), 'username': self._author.username,
+                       'post': self._post})
+
 
 def create_or_edit_post(request, username: str = None, post_id: int = None):
     if username is not None:
         author = get_object_or_404(User, username=username)
     else:
         author = request.user
-    mode = post_id is None
     if request.user == author:
-        post_editor = PostEditor(username, post_id, author, request)
+        post_editor = PostEditorRenderer(post_id, author, request)
         return post_editor.render()
     else:
         raise PermissionError(f'Unauthorised access: {request.user} '
