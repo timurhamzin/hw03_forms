@@ -1,13 +1,19 @@
 {% extends "base.html" %}
 {% load user_filters %}
-{% block title %}Последние обновления на сайте{% endblock %}
-{% block header %}Последние обновления на сайте{% endblock %}
+{% block title %}{% if create_or_edit  %}Добавление записи{% else %}Изменение записи{% endif %}{% endblock %}
+{% block header %}{% if create_or_edit  %}Добавление записи{% else %}Изменение записи{% endif %}{% endblock %}
 {% block content %}
 
 <div class="row justify-content-center">
     <div class="col-md-8 p-5">
         <div class="card">
-            <div class="card-header">Создание поста</div>
+            <div class="card-header">
+                {% if create_or_edit  %}
+                    Добавить запись
+                {% else %}
+                    Редактировать запись
+                {% endif %}
+            </div>
             <div class="card-body">
                 {% for error in form.errors %}
                     <div class="alert alert-danger" role="alert">
@@ -15,7 +21,8 @@
                     </div>
                 {% endfor %}
 
-                <form method="post" action="{% url 'new_post' %}">
+<!--                <form method="post" action="{% if create_or_edit  %}{% url 'post_new' %}{% else %}{% url 'post_edit' post_id=post_id username=username %}{% endif %}">-->
+                <form method="post" action="{% if create_or_edit  %}{% url 'post_new' %}{% else %}{% url 'post_edit' post.author.username post.id %}{% endif %}">
                     {% csrf_token %}
 
                     {% for field in form %}
@@ -24,13 +31,13 @@
                             <div class="col-md-6">
                                 {{ field|addclass:"form-control" }}
                                 {% if field.help_text %}
-                                <small id="{{ field.id_for_label }}-help" class="form-text text-muted">{{ field.help_text|safe }}</small>
+                                    <small id="{{ field.id_for_label }}-help" class="form-text text-muted">{{ field.help_text|safe }}</small>
                                 {% endif %}
                             </div>
                         </div>
                     {% endfor %}
                     <div class="col-md-6 offset-md-4">
-                        <input type = "submit" class="btn btn-primary" value = "Отправить">
+                        <input type = "submit" class="btn btn-primary" value={% if create_or_edit  %}"Добавить"{% else %}"Сохранить"{% endif %}>
                     </div>
                 </form>
             </div> <!-- card body -->

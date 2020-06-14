@@ -15,13 +15,30 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
+from django.contrib import flatpages
+from django.contrib.staticfiles.urls import staticfiles_urlpatterns
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('', include('posts.urls')),
+    path('about/', include('django.contrib.flatpages.urls')),
     path('auth/', include('users.urls')),
     path('auth/', include('django.contrib.auth.urls')),
 ]
+
+urlpatterns += [
+    path('about-author/', flatpages.views.flatpage, {'url': '/about-author/'},
+         name='about-author'),
+    path('about-spec/', flatpages.views.flatpage, {'url': '/about-spec/'},
+         name='about-spec'),
+]
+
+urlpatterns += [
+    path('', include('posts.urls')),
+]
+
+# TODO
+# remove if not used
+urlpatterns += staticfiles_urlpatterns()
 
 plans = [
     {
