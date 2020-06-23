@@ -15,13 +15,13 @@
                 {% endif %}
             </div>
             <div class="card-body">
+
                 {% for error in form.errors %}
                     <div class="alert alert-danger" role="alert">
                         {{ error }}
                     </div>
                 {% endfor %}
 
-<!--                <form method="post" action="{% if create_or_edit  %}{% url 'post_new' %}{% else %}{% url 'post_edit' post_id=post_id username=username %}{% endif %}">-->
                 <form method="post" action="{% if create_or_edit  %}{% url 'post_new' %}{% else %}{% url 'post_edit' post.author.username post.id %}{% endif %}">
                     {% csrf_token %}
 

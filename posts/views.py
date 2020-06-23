@@ -72,7 +72,6 @@ class PostEditorRenderer:
         self._request = request
         self._form = None
         self._post = None
-        self._form_valid = False
 
     def render(self):
         if self._mode == 'create':
@@ -83,23 +82,19 @@ class PostEditorRenderer:
 
     def _create_post(self):
         self._form = PostForm(self._request.POST or None)
-        if self._form.is_valid():
-            self._post = self._form.save(commit=False)
-            self._post.author = self._request.user
-            self._post.save()
-        self._form_valid = self._form.is_valid()
+        self._post = self._form.save(commit=False)
+        self._post.author = self._request.user
 
     def _edit_post(self):
+        self._post = Post.objects.get(author__username=self._author.username,
+                                      id=self._post_id)
         if self._request.method == 'GET':
-            self._post = Post.objects.get(author__username=self._author.username, id=self._post_id)
             self._form = PostForm(instance=self._post)
         else:
-            self._form = PostForm(self._request.POST)
+            self._form = PostForm(self._request.POST, instance=self._post)
             if self._form.is_valid():
                 post = self._form.save(commit=False)
                 post.author = self._request.user
-                post.save()
-        self._form_valid = self._form.is_valid()
 
     def _render(self):
         if self._request.method == 'GET':
@@ -108,20 +103,25 @@ class PostEditorRenderer:
             return self._render_on_post()
 
     def _render_on_post(self):
-        if self._form_valid:
-            # return post_view(self._request, self._post.author, self._post.id)
-            return redirect(reverse('post', kwargs={'username': self._author.username,
-                                                    'post_id': self._post_id}))
+        if self._form.is_valid():
+            self._post.save()
+            kwargs = {'username': self._post.author.username,
+                      'post_id': self._post.id}
+            return redirect(reverse('post', kwargs=kwargs))
         else:
-            print(f'errors: {self._form.errors}')
-            print_form_errors(self._form)
+            # print_form_errors(self._form)
             return self._render_on_get()
 
     def _render_on_get(self):
-        return render(self._request, 'post_edit.html',
-                      {'form': self._form, 'create_or_edit': self._mode == 'create',
-                       'post_id': str(self._post.id), 'username': self._author.username,
-                       'post': self._post})
+        context = {
+            'form': self._form,
+            'create_or_edit': self._mode == 'create',
+            'username': self._author.username,
+            'post': self._post
+        }
+        if self._mode == 'edit':
+            context['post_id'] = str(self._post.id)
+        return render(self._request, 'post_edit.html', context)
 
 
 def create_or_edit_post(request, username: str = None, post_id: int = None):
@@ -133,8 +133,8 @@ def create_or_edit_post(request, username: str = None, post_id: int = None):
         post_editor = PostEditorRenderer(post_id, author, request)
         return post_editor.render()
     else:
-        raise PermissionError(f'Unauthorised access: {request.user} '
-                              f'trying to edit {author}`s post')
+        return redirect(
+            reverse('post', kwargs=dict(username=username, post_id=post_id)))
 
 
 def post_new(request):
