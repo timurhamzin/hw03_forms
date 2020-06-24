@@ -1,7 +1,6 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
-
-from .models import Post, User, Group
+from .models import Post, User
 from django.http import HttpResponseNotFound
 from .forms import PostForm
 from django.core.paginator import Paginator
@@ -30,13 +29,13 @@ def group_posts(request, slug):
 
 
 def profile(request, username):
-    posts = Post.objects.filter(author__username=username
-                                ).select_related('author')
-    if posts:
+    author = User.objects.get(username=username)
+    if author:
+        posts = Post.objects.filter(author__username=author
+                                    ).select_related('author')
         paginator = Paginator(posts, 10)
         page_number = request.GET.get('page', 1)
         page = paginator.get_page(page_number)
-        author = posts[0].author
         return render(request, 'profile.html',
                       {'author': author, 'posts': posts,
                        'page': page, 'paginator': paginator})
@@ -44,7 +43,7 @@ def profile(request, username):
         return HttpResponseNotFound(request)
 
 
-def post_view(request, username, post_id: int):
+def post_view(request, username: str, post_id: int):
     post = Post.objects.get(author__username=username, id=post_id)
     posts_count = Post.objects.filter(author__username=username).count()
     if post:
@@ -57,7 +56,7 @@ def post_view(request, username, post_id: int):
 
 def print_form_errors(form):
     for field in form.errors:
-        print(form.errors[field].as_text())
+        print(f'Field "{field}" error: {form.errors[field].as_text()}')
 
 
 class PostEditorRenderer:
@@ -65,7 +64,7 @@ class PostEditorRenderer:
     def __init__(self, post_id: int, author: User, request):
         self._author = author
         self._post_id = post_id
-        if post_id is None:
+        if post_id is None or post_id == 0:
             self._mode = 'create'
         else:
             self._mode = 'edit'
@@ -75,7 +74,11 @@ class PostEditorRenderer:
 
     def render(self):
         if self._mode == 'create':
-            self._create_post()
+            if self._request.user.is_authenticated:
+                self._create_post()
+            else:  # user not logged in
+                url = reverse('login')
+                return redirect(url)
         else:
             self._edit_post()
         return self._render()
@@ -109,7 +112,7 @@ class PostEditorRenderer:
                       'post_id': self._post.id}
             return redirect(reverse('post', kwargs=kwargs))
         else:
-            # print_form_errors(self._form)
+            print_form_errors(PostForm(data=self._request.POST))
             return self._render_on_get()
 
     def _render_on_get(self):
@@ -138,8 +141,12 @@ def create_or_edit_post(request, username: str = None, post_id: int = None):
 
 
 def post_new(request):
-    return create_or_edit_post(request)
+    response = create_or_edit_post(request)
+    return response
 
 
 def post_edit(request, username, post_id):
-    return create_or_edit_post(request, username, post_id)
+    response = create_or_edit_post(request, username, post_id)
+    if response.status_code == 200:
+        url = reverse('index')
+        return redirect(url)

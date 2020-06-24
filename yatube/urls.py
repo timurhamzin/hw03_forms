@@ -36,8 +36,6 @@ urlpatterns += [
     path('', include('posts.urls')),
 ]
 
-# TODO
-# remove if not used
 urlpatterns += staticfiles_urlpatterns()
 
 plans = [
