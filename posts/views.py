@@ -1,7 +1,6 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
 
-import posts
 from .models import Post, User
 from django.http import HttpResponseNotFound
 from .forms import PostForm
@@ -77,7 +76,7 @@ class PostEditor:
                 try:
                     self._post = Post.objects.get(
                         author__username=author, pk=post_id)
-                except posts.models.Post.DoesNotExist:
+                except Post.DoesNotExist:
                     pass
                 if self._post:
                     self.redirect_to = reverse(
