@@ -16,10 +16,9 @@ class TestStringMethods(TestCase):
 
 class TestUserProfile(TestCase):
 
-    def __init__(self, *args, **kwargs):
+    def setUp(self):
         self._client = Client()
         self._user = None
-        super().__init__(*args, **kwargs)
 
     def create_and_login_user(self):
         return self._create_user(login=True)
@@ -38,12 +37,12 @@ class TestUserProfile(TestCase):
     def test_profile_created_for_new_user(self):
         self.create_and_login_user()
         response = self._client.get('/my_user/', follow=False)
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(200, response.status_code)
 
     def test_logged_user_can_publish_post_through_edit(self):
         self.create_and_login_user()
         response = self.publish_post_edit('test text')
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(200, response.status_code)
 
     def publish_post_edit(self, text):
         url = reverse('post_edit', args=[self._user.username, 0])
@@ -53,7 +52,7 @@ class TestUserProfile(TestCase):
     def test_logged_user_can_publish_post_through_new(self):
         self.create_and_login_user()
         response = self.publish_post_new('test text')
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(200, response.status_code)
 
     def publish_post_new(self, text):
         url = reverse('post_new')

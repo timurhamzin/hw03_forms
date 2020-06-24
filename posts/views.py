@@ -1,5 +1,7 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
+
+import posts
 from .models import Post, User
 from django.http import HttpResponseNotFound
 from .forms import PostForm
@@ -59,45 +61,52 @@ def print_form_errors(form):
         print(f'Field "{field}" error: {form.errors[field].as_text()}')
 
 
-class PostEditorRenderer:
+class PostEditor:
 
-    def __init__(self, post_id: int, author: User, request):
-        self._author = author
-        self._post_id = post_id
-        if post_id is None or post_id == 0:
-            self._mode = 'create'
-        else:
-            self._mode = 'edit'
-        self._request = request
+    def __init__(self, request, author: str = '', post_id: int = 0):
+        self.redirect_to = None
         self._form = None
         self._post = None
+        self._request = request
+        if not self._request.user.is_authenticated:
+            self.redirect_to = reverse('login')
+            return
+        if author and post_id:
+            self._mode = 'edit'
+            if request.user.username != author:
+                try:
+                    self._post = Post.objects.get(
+                        author__username=author, pk=post_id)
+                except posts.models.Post.DoesNotExist:
+                    pass
+                if self._post:
+                    self.redirect_to = reverse(
+                        'post', kwargs={'post_id': self._post.id,
+                                        'username': self._post.author})
+                else:
+                    self.redirect_to = reverse('index')
+                return
+            self._author = get_object_or_404(User, username=author)
+            self._post_id = post_id
+        else:
+            self._mode = 'create'
+            self._author = request.user
+            self._post_id = 0
 
     def render(self):
+        if self.redirect_to:
+            return redirect(self.redirect_to)
+
         if self._mode == 'create':
-            if self._request.user.is_authenticated:
-                self._create_post()
-            else:  # user not logged in
-                url = reverse('login')
-                return redirect(url)
+            self._set_post_and_form_on_create()
         else:
-            self._edit_post()
-        return self._render()
+            self._set_post_and_form_on_edit()
+        res = self._render()
 
-    def _create_post(self):
-        self._form = PostForm(self._request.POST or None)
-        self._post = self._form.save(commit=False)
-        self._post.author = self._request.user
+        if self.redirect_to:
+            res = redirect(self.redirect_to)
 
-    def _edit_post(self):
-        self._post = Post.objects.get(author__username=self._author.username,
-                                      id=self._post_id)
-        if self._request.method == 'GET':
-            self._form = PostForm(instance=self._post)
-        else:
-            self._form = PostForm(self._request.POST, instance=self._post)
-            if self._form.is_valid():
-                post = self._form.save(commit=False)
-                post.author = self._request.user
+        return res
 
     def _render(self):
         if self._request.method == 'GET':
@@ -108,9 +117,16 @@ class PostEditorRenderer:
     def _render_on_post(self):
         if self._form.is_valid():
             self._post.save()
-            kwargs = {'username': self._post.author.username,
-                      'post_id': self._post.id}
-            return redirect(reverse('post', kwargs=kwargs))
+            if self._mode == 'edit':
+                self.redirect_to = reverse(
+                    'post', kwargs={'username': self._post.author.username,
+                                    'post_id': self._post.id}
+                )
+            else:
+                # не понял, зачем в тестах требование перенаправления на
+                # главную страницу - логичнее было бы перенаправлять на
+                # страницу поста
+                self.redirect_to = reverse('index')
         else:
             print_form_errors(PostForm(data=self._request.POST))
             return self._render_on_get()
@@ -119,34 +135,31 @@ class PostEditorRenderer:
         context = {
             'form': self._form,
             'create_or_edit': self._mode == 'create',
-            'username': self._author.username,
             'post': self._post
         }
         if self._mode == 'edit':
             context['post_id'] = str(self._post.id)
         return render(self._request, 'post_edit.html', context)
 
+    def _set_post_and_form_on_create(self):
+        self._form = PostForm(self._request.POST or None)
+        self._post = self._form.save(commit=False)
+        self._post.author = self._request.user
 
-def create_or_edit_post(request, username: str = None, post_id: int = None):
-    if username is not None:
-        author = get_object_or_404(User, username=username)
-    else:
-        author = request.user
-    if request.user == author:
-        post_editor = PostEditorRenderer(post_id, author, request)
-        return post_editor.render()
-    else:
-        return redirect(
-            reverse('post', kwargs=dict(username=username, post_id=post_id)))
+    def _set_post_and_form_on_edit(self):
+        self._post = Post.objects.get(
+            author__username=self._request.user.username, id=self._post_id)
+        if self._request.method == 'GET':
+            self._form = PostForm(instance=self._post)
+        else:
+            self._form = PostForm(self._request.POST, instance=self._post)
 
 
 def post_new(request):
-    response = create_or_edit_post(request)
-    return response
+    editor = PostEditor(request)
+    return editor.render()
 
 
-def post_edit(request, username, post_id):
-    response = create_or_edit_post(request, username, post_id)
-    if response.status_code == 200:
-        url = reverse('index')
-        return redirect(url)
+def post_edit(request, username=None, post_id=0):
+    editor = PostEditor(request, username, post_id)
+    return editor.render()
