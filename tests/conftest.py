@@ -1,8 +1,8 @@
 import os
 import sys
 
-inserted_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-sys.path.insert(0, inserted_path)
+myPath = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, myPath + '/../')
 
 pytest_plugins = [
     'tests.fixtures.fixture_user',
